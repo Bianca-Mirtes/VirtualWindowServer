@@ -11,11 +11,17 @@ interface Viewer {
 interface Armchair {
   id: string;
   id_user: string;
-  isBusy: false;
+  isBusy: boolean;
+}
+
+interface Room {
+  id: string;
+  armchairs: Armchair[];
 }
 
 interface ExperienceState {
   viewers: Record<string, Viewer>;
+  rooms: Record<string, Room>; 
 }
 
 interface Action {
@@ -37,7 +43,7 @@ const PORT = 8080; // HTTP para arquivos de vídeo
 
 const webClientSockets: Record<string, any> = {};
 let unitySocket: any | null = null;
-let expState: ExperienceState = { viewers: {} };
+let expState: ExperienceState = { viewers: {}, rooms: {} };
 
 function addViewer(ws: any): Viewer {
   const viewer: Viewer = {
@@ -104,10 +110,30 @@ function processMessage(message: string, ws : any) {
     user.isProducer = true;
     console.log("Registrado como produtor");
   }
+  if(action.type === "CreateRoom"){
+    const room : Room = {
+      id: uuidv4(),
+      armchairs:
+    }
+    for(let ii=0; ii < 30; ii++){
+      const armchair : Armchair = {
+        id: uuidv4(),
+        id_user: "",
+        isBusy: false
+      }
 
-  if(action.type === "DeleteUser"){
-    delete expState.viewers[action.actor];
-    delete webClientSockets[action.actor];
+    }
+  }
+  if(action.type === "EnterRoom"){
+    const user = expState.viewers[action.actor];
+
+    const armchair : Armchair = {
+      id: uuidv4(),
+      id_user: user.id,
+      isBusy: true
+    }
+
+
   }
 }
 
