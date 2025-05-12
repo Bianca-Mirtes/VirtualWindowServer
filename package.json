@@ -1,0 +1,24 @@
+{
+  "name": "server",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/cors": "^2.8.18",
+    "@types/express": "^5.0.1",
+    "@types/luxon": "^3.6.0",
+    "@types/uuid": "^9.0.8",
+    "@types/ws": "^8.5.10"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "luxon": "^3.6.1",
+    "uuid": "^11.0.5",
+    "ws": "^8.18.0"
+  }
+}
