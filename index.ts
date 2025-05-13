@@ -9,14 +9,15 @@ interface Viewer {
 }
 
 interface Armchair {
-  id: string;
+  id: number;
   id_user: string;
   isBusy: boolean;
 }
 
 interface Room {
   id: string;
-  armchairs: Armchair[];
+  armchairs: Set<Armchair>;
+  isFull: boolean;
 }
 
 interface ExperienceState {
@@ -41,8 +42,7 @@ const wss = new WebSocket.Server({ port: 3000 });
 const app = express();
 const PORT = 8080; // HTTP para arquivos de vídeo
 
-const webClientSockets: Record<string, any> = {};
-let unitySocket: any | null = null;
+const users: Record<string, any> = {};
 let expState: ExperienceState = { viewers: {}, rooms: {} };
 
 function addViewer(ws: any): Viewer {
@@ -52,7 +52,7 @@ function addViewer(ws: any): Viewer {
     isProducer: false
   };
 
-  webClientSockets[viewer.id] = ws;
+  users[viewer.id] = ws;
   expState.viewers[viewer.id] = viewer;
 
   return viewer;
@@ -61,7 +61,7 @@ function addViewer(ws: any): Viewer {
 function sendGameState() {
   for (const [playerId, player] of Object.entries(expState.viewers)) {
     if(player.isProducer){
-      const ws = webClientSockets[player.id];
+      const ws = users[player.id];
       
       const resp: ServerResponse = {
         type: "GameState",
@@ -97,7 +97,7 @@ wss.on('connection', function connection(ws) {
 
   ws.on("close", () => {
     delete expState.viewers[viewer.id];
-    delete webClientSockets[viewer.id];
+    delete users[viewer.id];
 
     console.log(`Viewer deletado: ${viewer.id}`);
   })
@@ -105,39 +105,69 @@ wss.on('connection', function connection(ws) {
 
 function processMessage(message: string, ws : any) {
   const action : Action = JSON.parse(message);
-  if (action.type === "producer") {
-    const user = expState.viewers[action.actor];
-    user.isProducer = true;
-    console.log("Registrado como produtor");
-  }
-  if(action.type === "CreateRoom"){
-    const room : Room = {
-      id: uuidv4(),
-      armchairs:
-    }
-    for(let ii=0; ii < 30; ii++){
-      const armchair : Armchair = {
-        id: uuidv4(),
-        id_user: "",
-        isBusy: false
-      }
 
+  if(action.type === "CreateRoom"){
+    const newRoom : Room = {
+      id: uuidv4(),
+      armchairs: new Set(),
+      isFull: false
     }
+    expState.rooms[newRoom.id] = newRoom;
+    SendNewRoom(action.actor, newRoom.id);
   }
+
   if(action.type === "EnterRoom"){
     const user = expState.viewers[action.actor];
-
-    const armchair : Armchair = {
-      id: uuidv4(),
-      id_user: user.id,
-      isBusy: true
+    const currentRoom = expState.rooms[action.parameters.room_id];
+    if(currentRoom.isFull){
+      const newRoom : Room = {
+        id: uuidv4(),
+        armchairs: new Set(),
+        isFull: false
+      }
+      expState.rooms[newRoom.id] = newRoom;
+      SendNewRoom(action.actor, newRoom.id);
+    }else{
+      const armchair : Armchair = {
+        id: currentRoom.armchairs.size+1,
+        id_user: action.actor,
+        isBusy: true
+      }
+      currentRoom.armchairs.add(armchair);
+      if(currentRoom.armchairs.size == 30){
+        currentRoom.isFull = true;
+      }
+      sendArmchairID(action.actor, currentRoom.armchairs.size);
     }
-
-
   }
+}
+
+function SendNewRoom(userID: string, roomID: string){
+  const ws = users[userID];
+
+  const resp: ServerResponse = {
+    type: "RoomID",
+    expState: expState,
+    parameters: {userId: userID, room: roomID}
+  }
+
+  ws.send(JSON.stringify(resp));
+}
+
+function sendArmchairID(userID: string, armchairID: number){
+  const ws = users[userID];
+
+  const resp: ServerResponse = {
+    type: "ArmchairID",
+    expState: expState,
+    parameters: {userId: userID, armchair : armchairID.toString()}
+  }
+
+  ws.send(JSON.stringify(resp));
 }
 
 setInterval(() => {
   sendGameState();
 }, 1000);
-console.log('WebSocket server started on ws://localhost:300');
+
+console.log('WebSocket server started on ws://localhost:3000');
