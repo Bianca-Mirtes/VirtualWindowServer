@@ -117,17 +117,8 @@ function processMessage(message: string, ws : any) {
   }
 
   if(action.type === "EnterRoom"){
-    const user = expState.viewers[action.actor];
     const currentRoom = expState.rooms[action.parameters.room_id];
-    if(currentRoom.isFull){
-      const newRoom : Room = {
-        id: uuidv4(),
-        armchairs: new Set(),
-        isFull: false
-      }
-      expState.rooms[newRoom.id] = newRoom;
-      SendNewRoom(action.actor, newRoom.id);
-    }else{
+    if(!currentRoom.isFull){
       const armchair : Armchair = {
         id: currentRoom.armchairs.size+1,
         id_user: action.actor,
@@ -136,8 +127,15 @@ function processMessage(message: string, ws : any) {
       currentRoom.armchairs.add(armchair);
       if(currentRoom.armchairs.size == 30){
         currentRoom.isFull = true;
+          const newRoom : Room = {
+          id: uuidv4(),
+          armchairs: new Set(),
+          isFull: false
+        }
+        expState.rooms[newRoom.id] = newRoom;
+        SendNewRoom(action.actor, newRoom.id);
       }
-      sendArmchairID(action.actor, currentRoom.armchairs.size);
+      sendArmchairID(action.actor, currentRoom.armchairs.size, currentRoom.id);
     }
   }
 }
@@ -146,21 +144,21 @@ function SendNewRoom(userID: string, roomID: string){
   const ws = users[userID];
 
   const resp: ServerResponse = {
-    type: "RoomID",
+    type: "NewRoom",
     expState: expState,
-    parameters: {userId: userID, room: roomID}
+    parameters: {userId: userID, room_id: roomID}
   }
 
   ws.send(JSON.stringify(resp));
 }
 
-function sendArmchairID(userID: string, armchairID: number){
+function sendArmchairID(userID: string, armchairID: number, roomID: string){
   const ws = users[userID];
 
   const resp: ServerResponse = {
-    type: "ArmchairID",
+    type: "UpdadeRoom",
     expState: expState,
-    parameters: {userId: userID, armchair : armchairID.toString()}
+    parameters: {user_id: userID, armchair : armchairID.toString(), room_id: roomID}
   }
 
   ws.send(JSON.stringify(resp));
