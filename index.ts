@@ -5,6 +5,9 @@ import { v4 as uuidv4 } from 'uuid';
 interface Viewer {
   id: string;
   name: string;
+  position_x: number;
+  position_y: number;
+  position_z: number;
   isProducer: boolean;
 }
 
@@ -49,6 +52,9 @@ function addViewer(ws: any): Viewer {
   const viewer: Viewer = {
     id: uuidv4(),
     name: "",
+    position_x: 0,
+    position_y: 0,
+    position_z: 0,
     isProducer: false
   };
 
@@ -58,13 +64,13 @@ function addViewer(ws: any): Viewer {
   return viewer;
 }
 
-function sendGameState() {
+function sendExpState() {
   for (const [playerId, player] of Object.entries(expState.viewers)) {
     if(player.isProducer){
       const ws = users[player.id];
       
       const resp: ServerResponse = {
-        type: "GameState",
+        type: "ExpState",
         parameters: { playerId: playerId},
         expState: expState
       }
@@ -138,23 +144,31 @@ function processMessage(message: string, ws : any) {
       sendArmchairID(action.actor, currentRoom.armchairs.size, currentRoom.id);
     }
   }
+
+    if (action.type === "PositionUpdate") {
+    console.log("PositionUpdate", action);
+    const user = expState.viewers[action.actor];
+    if (user) {
+	    user.position_x = Number(action.parameters.position_x);
+	    user.position_y = Number(action.parameters.position_y);
+	    user.position_z = Number(action.parameters.position_z);
+    }
+  }
 }
 
 function SendNewRoom(userID: string, roomID: string){
   const ws = users[userID];
-
   const resp: ServerResponse = {
     type: "NewRoom",
     expState: expState,
     parameters: {userId: userID, room_id: roomID}
   }
-
+  console.log("sala criada!!!");
   ws.send(JSON.stringify(resp));
 }
 
 function sendArmchairID(userID: string, armchairID: number, roomID: string){
   const ws = users[userID];
-
   const resp: ServerResponse = {
     type: "UpdadeRoom",
     expState: expState,
@@ -165,7 +179,7 @@ function sendArmchairID(userID: string, armchairID: number, roomID: string){
 }
 
 setInterval(() => {
-  sendGameState();
+  sendExpState();
 }, 1000);
 
 console.log('WebSocket server started on ws://localhost:3000');
