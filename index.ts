@@ -46,7 +46,7 @@ const app = express();
 const PORT = 8080; // HTTP para arquivos de vídeo
 
 const users: Record<string, any> = {};
-let expState: ExperienceState = { viewers: {}, rooms: {} };
+let expState: ExperienceState = { viewers: {}, rooms: {}};
 
 function addViewer(ws: any): Viewer {
   const viewer: Viewer = {
