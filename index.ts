@@ -19,6 +19,7 @@ interface Armchair {
 
 interface Room {
   id: string;
+  capacity: number;
   armchairs: Set<Armchair>;
   isFull: boolean;
 }
@@ -46,7 +47,7 @@ const app = express();
 const PORT = 8080; // HTTP para arquivos de vídeo
 
 const users: Record<string, any> = {};
-let expState: ExperienceState = { viewers: {}, rooms: {} };
+let expState: ExperienceState = { viewers: {}, rooms: {}};
 
 function addViewer(ws: any): Viewer {
   const viewer: Viewer = {
@@ -71,7 +72,7 @@ function sendExpState() {
       
       const resp: ServerResponse = {
         type: "ExpState",
-        parameters: { playerId: playerId},
+        parameters: { playerId: playerId, posX: player.position_x.toString(), posY: player.position_y.toString(), posZ: player.position_z.toString()},
         expState: expState
       }
 
@@ -85,7 +86,7 @@ wss.on('connection', function connection(ws) {
   const viewer = addViewer(ws);
   console.log(`Viewer criado: ${viewer.id}`);
 
-      // Enviar resposta de boas-vindas
+  // Enviar resposta de boas-vindas
   const welcomeAction: ServerResponse = {
     type: "Welcome",
     parameters: { playerId: viewer.id },
@@ -115,6 +116,7 @@ function processMessage(message: string, ws : any) {
   if(action.type === "CreateRoom"){
     const newRoom : Room = {
       id: uuidv4(),
+      capacity: 100,
       armchairs: new Set(),
       isFull: false
     }
@@ -131,21 +133,41 @@ function processMessage(message: string, ws : any) {
         isBusy: true
       }
       currentRoom.armchairs.add(armchair);
-      if(currentRoom.armchairs.size == 30){
+
+      if(currentRoom.armchairs.size == currentRoom.capacity){
         currentRoom.isFull = true;
-          const newRoom : Room = {
+        const newRoom : Room = {
           id: uuidv4(),
+          capacity: 100,
           armchairs: new Set(),
           isFull: false
         }
         expState.rooms[newRoom.id] = newRoom;
         SendNewRoom(action.actor, newRoom.id);
       }
-      sendArmchairID(action.actor, currentRoom.armchairs.size, currentRoom.id);
+      let chars : string = "";
+      currentRoom.armchairs.forEach(element => {
+        chars += element.id + " " + element.id_user + "|";
+      });
+      sendArmchairID(action.actor, currentRoom.armchairs.size, currentRoom.id, chars);
     }
   }
 
-    if (action.type === "PositionUpdate") {
+  if (action.type === "webrtc-offer" || action.type === "webrtc-answer" || action.type === "ice-candidate") {
+    const targetId = action.parameters.targetId;
+    const targetSocket = users[targetId];
+    if (targetSocket) {
+       targetSocket.send(JSON.stringify({
+       type: action.type,
+       parameters: {
+          from: action.actor,
+          data: action.sdp
+       }
+       }));
+    }
+  }
+
+  if (action.type === "PositionUpdate") {
     console.log("PositionUpdate", action);
     const user = expState.viewers[action.actor];
     if (user) {
@@ -154,6 +176,24 @@ function processMessage(message: string, ws : any) {
 	    user.position_z = Number(action.parameters.position_z);
     }
   }
+
+  if(action.type === "UpdateUser"){
+    const user = expState.viewers[action.actor];
+    user.isProducer = true;
+    SendUpdateUser(action.actor, user.isProducer);
+  }
+}
+
+function SendUpdateUser(userID: string, isADM: boolean){
+  const ws = users[userID];
+  const resp: ServerResponse = {
+    type: "UpdateUser",
+    expState: expState,
+    parameters: {userId: userID, isProducer: isADM.toString()}
+  }
+  console.log(isADM.toString());
+  console.log("Usuario ADM!!!");
+  ws.send(JSON.stringify(resp));
 }
 
 function SendNewRoom(userID: string, roomID: string){
@@ -167,12 +207,13 @@ function SendNewRoom(userID: string, roomID: string){
   ws.send(JSON.stringify(resp));
 }
 
-function sendArmchairID(userID: string, armchairID: number, roomID: string){
+function sendArmchairID(userID: string, armchairID: number, roomID: string, otherChairs: string){
   const ws = users[userID];
+  console.log(otherChairs);
   const resp: ServerResponse = {
     type: "UpdadeRoom",
     expState: expState,
-    parameters: {user_id: userID, armchair : armchairID.toString(), room_id: roomID}
+    parameters: {user_id: userID, armchair : armchairID.toString(), room_id: roomID, others: otherChairs}
   }
 
   ws.send(JSON.stringify(resp));
