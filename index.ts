@@ -19,6 +19,7 @@ interface Armchair {
 
 interface Room {
   id: string;
+  capacity: number;
   armchairs: Set<Armchair>;
   isFull: boolean;
 }
@@ -85,7 +86,7 @@ wss.on('connection', function connection(ws) {
   const viewer = addViewer(ws);
   console.log(`Viewer criado: ${viewer.id}`);
 
-      // Enviar resposta de boas-vindas
+  // Enviar resposta de boas-vindas
   const welcomeAction: ServerResponse = {
     type: "Welcome",
     parameters: { playerId: viewer.id },
@@ -115,6 +116,7 @@ function processMessage(message: string, ws : any) {
   if(action.type === "CreateRoom"){
     const newRoom : Room = {
       id: uuidv4(),
+      capacity: 100,
       armchairs: new Set(),
       isFull: false
     }
@@ -131,17 +133,23 @@ function processMessage(message: string, ws : any) {
         isBusy: true
       }
       currentRoom.armchairs.add(armchair);
-      if(currentRoom.armchairs.size == 30){
+
+      if(currentRoom.armchairs.size == currentRoom.capacity){
         currentRoom.isFull = true;
-          const newRoom : Room = {
+        const newRoom : Room = {
           id: uuidv4(),
+          capacity: 100,
           armchairs: new Set(),
           isFull: false
         }
         expState.rooms[newRoom.id] = newRoom;
         SendNewRoom(action.actor, newRoom.id);
       }
-      sendArmchairID(action.actor, currentRoom.armchairs.size, currentRoom.id);
+      let chars : string = "";
+      currentRoom.armchairs.forEach(element => {
+        chars += element.id + " " + element.id_user + "|";
+      });
+      sendArmchairID(action.actor, currentRoom.armchairs.size, currentRoom.id, chars);
     }
   }
 
@@ -199,12 +207,13 @@ function SendNewRoom(userID: string, roomID: string){
   ws.send(JSON.stringify(resp));
 }
 
-function sendArmchairID(userID: string, armchairID: number, roomID: string){
+function sendArmchairID(userID: string, armchairID: number, roomID: string, otherChairs: string){
   const ws = users[userID];
+  console.log(otherChairs);
   const resp: ServerResponse = {
     type: "UpdadeRoom",
     expState: expState,
-    parameters: {user_id: userID, armchair : armchairID.toString(), room_id: roomID}
+    parameters: {user_id: userID, armchair : armchairID.toString(), room_id: roomID, others: otherChairs}
   }
 
   ws.send(JSON.stringify(resp));
