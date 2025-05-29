@@ -124,6 +124,11 @@ function processMessage(message: string, ws : any) {
     SendNewRoom(action.actor, newRoom.id);
   }
 
+  if(action.type === "UpdateName"){
+    const user = expState.viewers[action.actor];
+    user.name = action.parameters.userName;
+  }
+
   if(action.type === "EnterRoom"){
     const currentRoom = expState.rooms[action.parameters.room_id];
     if(!currentRoom.isFull){
