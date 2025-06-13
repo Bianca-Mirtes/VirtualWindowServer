@@ -8,7 +8,6 @@ interface Viewer {
   position_x: number;
   position_y: number;
   position_z: number;
-  currentRoom: string;
   skin: Skin;
   isAdm: boolean;
 }
@@ -25,6 +24,12 @@ const skinStandard: Skin = {
   material : -1
 }
 
+const room: Room = {
+  id: "",
+  capacity: 100,
+  armchairs: new Set(),
+  isFull: false
+}
 interface Armchair {
   id: number;
   id_user: string;
@@ -39,7 +44,6 @@ interface Room {
 
 interface ExperienceState {
   viewers: Record<string, Viewer>;
-  rooms: Record<string, Room>; 
 }
 
 interface Action {
@@ -75,7 +79,7 @@ wssVideo.on('connection', (ws) => {
 // Servidor Websocket para o multiplayer
 const wss = new WebSocket.Server({ port: 3000 });
 const users: Record<string, any> = {};
-let expState: ExperienceState = { viewers: {}, rooms: {}};
+let expState: ExperienceState = { viewers: {}};
 
 function addViewer(ws: any): Viewer {
   const viewer: Viewer = {
@@ -84,7 +88,6 @@ function addViewer(ws: any): Viewer {
     position_x: 0,
     position_y: 0,
     position_z: 0,
-    currentRoom: "",
     skin: skinStandard,
     isAdm: false
   };
@@ -141,25 +144,19 @@ wss.on('connection', function connection(ws) {
 function processMessage(message: string, ws : any) {
   const action : Action = JSON.parse(message);
   if(action.type === "CreateRoom"){
-    // cria o objeto Room
-    const newRoom : Room = {
-      id: uuidv4(),
-      capacity: 100,
-      armchairs: new Set(),
-      isFull: false
-    }
+    room.id = uuidv4();
+
     // povoa ele com as cadeiras de acordo com a capacidade
     for(let ii=0; ii < Number(action.parameters.capacity); ii++){
       const armchair : Armchair = {
-        id: newRoom.armchairs.size+1,
+        id: room.armchairs.size+1,
         id_user: "",
         isBusy: false
       }
-      newRoom.armchairs.add(armchair);
+      room.armchairs.add(armchair);
     }
     // armazena e envia a informação para o cliente
-    expState.rooms[newRoom.id] = newRoom;
-    SendNewRoom(action.actor, newRoom.id);
+    SendNewRoom(action.actor, room.id);
     sendRooms(action.actor);
   }
 
@@ -169,28 +166,26 @@ function processMessage(message: string, ws : any) {
   }
 
   if(action.type === "EnterRoom"){
-    const currentRoom = expState.rooms[action.parameters.room_id];
     const player = expState.viewers[action.actor];
-    if(!currentRoom.isFull){
-      for(const el of currentRoom.armchairs){
+    if(!room.isFull){
+      for(const el of room.armchairs){
         if(!el.isBusy){
           el.id_user = action.actor
           el.isBusy = true;
-          player.currentRoom = currentRoom.id;
           return;
         }
       }
-      currentRoom.isFull = true;
+      room.isFull = true;
     }
 
     for (const [playerId, player] of Object.entries(expState.viewers)) {
       const ws = users[player.id];
-      const count = OccuppedArmchairs(currentRoom);
+      const count = OccuppedArmchairs(room);
       const currentPlayerID = playerId == action.actor ? true : false;
       
       const resp: ServerResponse = {
         type: "UpdateRoom",
-        parameters: { playerId: playerId, room_id: currentRoom.id, qntViewers: count.toString(), isSender : currentPlayerID.toString()},
+        parameters: { playerId: playerId, room_id: room.id, qntViewers: count.toString(), isSender : currentPlayerID.toString()},
         expState: expState
       }
 
@@ -214,32 +209,22 @@ function processMessage(message: string, ws : any) {
     sendSkin(player.id, player.skin.body, player.skin.skin, player.skin.material, player.name)
   }
 
-  if(action.type === "RequestRooms"){ // solicita as salas
-    console.log("Solicitou as salas!");
-    for(const [roomId, room] of Object.entries(expState.rooms)){
-      const ocArmchairs = OccuppedArmchairs(room);
-      sendRoom(action.actor, room.capacity, ocArmchairs, roomId);
-    }
+  if(action.type === "RequestRoom"){ // solicita a sala
+    const ocArmchairs = OccuppedArmchairs(room);
+    sendRoom(action.actor, room.capacity, ocArmchairs, room.id);
   }
 
   if(action.type === "RequestArmchair"){
-    const currentRoom = expState.rooms[action.parameters.room_id];
-
     let armchairID : number = 0;
 
-    for(const armchair of currentRoom.armchairs){
+    for(const armchair of room.armchairs){
       if(armchair.id_user == action.actor){
         armchairID = armchair.id;
         break;
       }
     }
 
-    let chars : string = "";
-    currentRoom.armchairs.forEach(element => {
-      chars += element.id + " " + element.id_user + "|";
-    });
-
-    sendArmchairID(action.actor, armchairID, currentRoom.id, chars);
+    sendArmchairID(action.actor, armchairID, room.id);
   }
 
   if (action.type === "PositionUpdate") {
@@ -271,10 +256,8 @@ function OccuppedArmchairs(room: Room){
 function sendRooms(AdmId: string){
   for (const playerId of Object.keys(expState.viewers)) {
     if(playerId != AdmId){
-      for(const [roomId, room] of Object.entries(expState.rooms)){
-        const ocArmchairs = OccuppedArmchairs(room);
-        sendRoom(playerId, room.capacity, ocArmchairs, roomId);
-      }
+      const ocArmchairs = OccuppedArmchairs(room);
+      sendRoom(playerId, room.capacity, ocArmchairs, room.id);
     }
   }
 }
@@ -282,7 +265,7 @@ function sendRooms(AdmId: string){
 function sendRoom(userID: string, capacity: number, OccuppedArmchairs: number, roomID: string){
   const ws = users[userID];
   const resp: ServerResponse = {
-    type: "Rooms",
+    type: "Room",
     expState: expState,
     parameters: {userId: userID, capacity: capacity.toString(), occuppedArmchairs: OccuppedArmchairs.toString(), roomId: roomID}
   }
@@ -300,13 +283,12 @@ function SendNewRoom(userID: string, roomID: string){
   ws.send(JSON.stringify(resp));
 }
 
-function sendArmchairID(userID: string, armchairID: number, roomID: string, otherChairs: string){
+function sendArmchairID(userID: string, armchairID: number, roomID: string){
   const ws = users[userID];
-  console.log(otherChairs);
   const resp: ServerResponse = {
     type: "ArmchairID",
     expState: expState,
-    parameters: {user_id: userID, armchair : armchairID.toString(), room_id: roomID, others: otherChairs}
+    parameters: {user_id: userID, armchair : armchairID.toString(), room_id: roomID}
   }
 
   ws.send(JSON.stringify(resp));
