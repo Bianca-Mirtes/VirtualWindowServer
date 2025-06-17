@@ -60,7 +60,8 @@ interface ServerResponse {
 }
 
 // Servidor WebSocket para a webcam
-const wssVideo = new WebSocket.Server({ port: 8080 });
+const wssVideo = new WebSocket.Server({ port: 8080, host: '0.0.0.0' });
+
 
 wssVideo.on('connection', (ws) => {
   console.log('Cliente WebSocket conectado');
@@ -77,7 +78,8 @@ wssVideo.on('connection', (ws) => {
 });
 
 // Servidor Websocket para o multiplayer
-const wss = new WebSocket.Server({ port: 3000 });
+const wss = new WebSocket.Server({ port: 3000, host: '0.0.0.0' });
+
 const users: Record<string, any> = {};
 let expState: ExperienceState = { viewers: {}};
 
@@ -85,9 +87,9 @@ function addViewer(ws: any): Viewer {
   const viewer: Viewer = {
     id: uuidv4(),
     name: "",
-    position_x: 0,
-    position_y: 0,
-    position_z: 0,
+    position_x: 505,
+    position_y: 3.3,
+    position_z: 501,
     skin: skinStandard,
     isAdm: false
   };
@@ -100,15 +102,15 @@ function addViewer(ws: any): Viewer {
 
 function sendExpState() {
   for (const [playerId, player] of Object.entries(expState.viewers)) {
-      const ws = users[player.id];
-      
-      const resp: ServerResponse = {
-        type: "ExpState",
-        parameters: { playerId: playerId},
-        expState: expState
-      }
+    const ws = users[player.id];
+    
+    const resp: ServerResponse = {
+      type: "ExpState",
+      parameters: { playerId: playerId},
+      expState: expState
+    }
 
-      ws.send(JSON.stringify(resp));
+    ws.send(JSON.stringify(resp));
   }
 }
 
@@ -307,6 +309,6 @@ function sendSkin(userID: string, body: number, skin: number, variant : number, 
 
 setInterval(() => {
   sendExpState();
-}, 1000);
+}, 100);
 
 console.log('WebSocket server started on ws://localhost:3000');
