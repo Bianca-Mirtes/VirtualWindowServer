@@ -35,6 +35,7 @@ interface Armchair {
   id_user: string;
   isBusy: boolean;
 }
+
 interface Room {
   id: string;
   capacity: number;
@@ -44,6 +45,7 @@ interface Room {
 
 interface ExperienceState {
   viewers: Record<string, Viewer>;
+  room : Room;
 }
 
 interface Action {
@@ -81,7 +83,7 @@ wssVideo.on('connection', (ws) => {
 const wss = new WebSocket.Server({ port: 3000, host: '0.0.0.0' });
 
 const users: Record<string, any> = {};
-let expState: ExperienceState = { viewers: {}};
+let expState: ExperienceState = { viewers: {}, room};
 
 function addViewer(ws: any): Viewer {
   const viewer: Viewer = {
@@ -139,6 +141,10 @@ wss.on('connection', function connection(ws) {
     delete expState.viewers[viewer.id];
     delete users[viewer.id];
 
+    for (const [playerId, player] of Object.entries(expState.viewers)) {
+      sendDeleteUser(playerId, viewer.id);
+    }
+
     console.log(`Viewer deletado: ${viewer.id}`);
   })
 });
@@ -168,7 +174,6 @@ function processMessage(message: string, ws : any) {
   }
 
   if(action.type === "EnterRoom"){
-    const player = expState.viewers[action.actor];
     if(!room.isFull){
       for(const el of room.armchairs){
         if(!el.isBusy){
@@ -182,16 +187,17 @@ function processMessage(message: string, ws : any) {
 
     for (const [playerId, player] of Object.entries(expState.viewers)) {
       const ws = users[player.id];
-      const count = OccuppedArmchairs(room);
       const currentPlayerID = playerId == action.actor ? true : false;
       
-      const resp: ServerResponse = {
-        type: "UpdateRoom",
-        parameters: { playerId: playerId, room_id: room.id, qntViewers: count.toString(), isSender : currentPlayerID.toString()},
-        expState: expState
-      }
+      if(!currentPlayerID){
+        const resp: ServerResponse = {
+          type: "ChangeScene",
+          parameters: { playerId: playerId, otherUserID : action.actor},
+          expState: expState
+        }
 
-      ws.send(JSON.stringify(resp));
+        ws.send(JSON.stringify(resp));
+      }
     }
   }
 
@@ -262,6 +268,16 @@ function sendRooms(AdmId: string){
       sendRoom(playerId, room.capacity, ocArmchairs, room.id);
     }
   }
+}
+
+function sendDeleteUser(userID: string, userDeletedID: string){
+  const ws = users[userID];
+  const resp: ServerResponse = {
+    type: "DeleteUSer",
+    expState: expState,
+    parameters: {userId: userID, otherUserID: userDeletedID}
+  }
+  ws.send(JSON.stringify(resp));
 }
 
 function sendRoom(userID: string, capacity: number, OccuppedArmchairs: number, roomID: string){
