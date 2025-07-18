@@ -117,7 +117,7 @@ function sendExpState() {
 }
 
 wss.on('connection', function connection(ws) {
-    // Adiciona o viewer
+  // Adiciona o viewer
   const viewer = addViewer(ws);
   console.log(`Viewer criado: ${viewer.id}`);
 
