@@ -102,6 +102,11 @@ function addViewer(ws: any): Viewer {
   return viewer;
 }
 
+// Faz com que todo Set vire array automaticamente quando usar JSON.stringify
+;(Set.prototype as any).toJSON = function () {
+return Array.from(this);
+};
+
 function sendExpState() {
   for (const [playerId, player] of Object.entries(expState.viewers)) {
     const ws = users[player.id];
